@@ -1,0 +1,220 @@
+---
+title: "Washington Education System"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r, message=FALSE,echo=FALSE,results='hide',warning=FALSE}
+#Packages
+rm(list = ls())
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(magrittr)
+library(ggthemes)
+library(rio)
+#library(pivottabler)
+library(ggrepel)
+library(usmap)
+```
+
+
+```{r, message=FALSE,echo=FALSE,results='hide',warning=FALSE}
+#Setting up the data
+df <- read.csv("https://github.com/Charting-Chumps/Data/raw/main/2020_2021_Washington_Public_Schools_Student_Teacher_Ratio.csv")
+names(df)[1] <- 'County'
+df2 <- read.csv("https://github.com/Charting-Chumps/Data/raw/main/geographic_codes.csv")
+```
+```{r, message=FALSE,echo=FALSE,results='hide',warning=FALSE}
+#Data Analysis/Cleaning
+STRmean = mean(df$StudentToTeacherRatio)
+WeightedSTRmean = sum(df$TotalStudentCount) / sum(df$TotalTeacherCount)
+```
+```{r, message=FALSE,results='hide',warning=FALSE,fig.show='hide'}
+base = ggplot(df,aes(x = StudentToTeacherRatio,y = TotalStudentCount,
+                       color = County,
+                       label = DistrictName))
+plot1 = base + 
+  geom_point() + 
+  theme_tufte() +
+  geom_text_repel(size = 1.5 , max.overlaps = 10)
+plot2 = plot1 +
+  geom_vline(xintercept = STRmean,
+                           size=0.3,
+                           color = "black", 
+                           linetype = "dashed") + 
+  annotate(geom = 'text', 
+                 label = "District average Student to Teacher ratio: 13.4 ->",
+                 size = 2.1,
+                 y = 37000,
+                 x=7,
+                 angle=0) + 
+  geom_vline(xintercept = WeightedSTRmean,
+                           linewidth=0.3,
+                           color = "black", 
+                           linetype = "dashed") + 
+  annotate(geom = 'text', 
+                 label = "<- State average Student to Teacher ratio: 15.4",
+                 size = 2.1,
+                 y = 42000,
+                 x=21.2,
+                 angle=0)
+plot2
+```
+```{r, message=FALSE, results='hide',warning=FALSE, fig.show='hide'}
+basepointbar = ggplot(df,aes(x = reorder(County,-StudentToTeacherRatio), #Reordered so that counties with a low student:teacher ratio show up first, and ones with higher student:teacher ratios show up later. We can change this to a different method if we want. I tried reordering by the number of students but that clumped up all the big dots in the same area, so it was kinda ugly
+                     y = StudentToTeacherRatio,
+                     color = County, #We do not really need this but it make it look nicer.
+                     size = TotalStudentCount)) #The size of each dot is proportional to the number of students in that district. R scales this nicely so that some bubbles are not massive and others way too small.
+pointbar1 = basepointbar + 
+  geom_point() +
+  coord_flip() + #Flips the coordinates, which makes the counties readable
+  theme_tufte() + #This is a theme that make the chart look better. Not tied to this if someone has something they like more
+  labs(title="Districts in rural counties have lower student:teacher ratios than urban districts",
+       x ="County",
+       y = "Student:Teacher ratio",
+       caption = "Source: Washington State Department of Education") +
+  theme(legend.position = "bottom", plot.caption = element_text(hjust = 0, size = 8), #these theme parameters are the same as what we had in assignment 2. Can change these if we want.
+        plot.title = element_text(hjust = 0.5, size = 12),
+        axis.title = element_text(size = 10)) +
+  guides(color = "none") #this gets rid of the legend for each county, super ugly
+pointbar1
+```
+```{r}
+names(df2)[1] <- 'County'
+names(df2)[3] <- "fips"
+waMapSchool <- left_join(df, df2, by = "County")
+#Find average district Student to Teacher ratio and group in each County
+waMapSchool2 <- waMapSchool %>%
+  group_by(County) %>%
+#find average Student to teacher ratio   
+  mutate(mean(StudentToTeacherRatio))
+#Map the ratio on a WA map and show county boundaries 
+plot_usmap(data = waMapSchool2, values = "mean(StudentToTeacherRatio)", include = "WA") +
+#low = low number of students per teacher & high = high number of students per teacher 
+  scale_fill_continuous(low = "green", high = "red", name = "# of students per teacher") + 
+  labs(title = "Average District Student-to-Teacher Ratio across different WA Counties") +
+  theme(legend.position = "right")
+```
+
+
+
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r, message=FALSE,echo=FALSE,results='hide',warning=FALSE}
+#Get data
+df = read.csv('https://raw.githubusercontent.com/alyssatn/RWorkshopHW/main/Report_Card_Enrollment_from_2014-15_to_Current_Year.csv')
+```
+
+```{r, message=FALSE,echo=FALSE,results='hide',warning=FALSE}
+#Setup
+df6=df[df$Gradelevel=="6th Grade",]
+df6$All.Students=gsub(pattern = ',', replacement = "",df6$All.Students)
+df6$All.Students=as.numeric(df6$All.Students)
+df6$gap = df6$All.Students-78603
+df6$gap_lead = 100 * (df6$All.Students - lead(df6$All.Students))/lead(df6$All.Students)
+df6$PositiveGap=ifelse(df6$gap_lead > 0,"Yes","No")
+df6$PositiveGap=as.character(df6$PositiveGap) #I don't know if this matters but I have it here anyway
+df6[8,38] = "No" #manually updating the data for the 2014-2015 year
+df6[8,36] = 0 #manually updating the data for the 2014-2015 year
+df6$xlabel = c(7.8,6.8,5.3,4.3,3.3,2.3,1.3,2)#X coordinates for the line segment labels
+df6$ylabel = c(5273 - ((5273 - 2135)/2), 9606 - (9606 - 5273)/2, 8643 - (8643 - 9606)/2, 8643 - (8643 - 5632)/2,5632 - (5632-2707)/2, 2707 - (2702-1415)/2,(1415/2), 600)#Y coordinates for the line segment labels
+df6$label = c(2135-5273, 5273 - 9096, 9096 - 8643, 8643 - 5632, 5632 - 2707, 2707 - 1415, 1415, 0)
+```
+
+
+
+```{r, message=FALSE,results='hide',warning=FALSE}
+base=ggplot(data=df6,
+            aes(x=SchoolYear,
+                y=gap))
+plot1=base + geom_bar(fill = "black",
+                      stat = 'identity') + 
+      labs(title="Fewer 6th graders were enrolled in Washington State public schools after the Covid-19 Pandemic",
+                     x ="School Year", 
+                     y = "Change in number of 6th graders since 2014",
+                     caption = "Source: Washington State Department of Education") + 
+      theme(plot.caption = element_text(hjust = 0, size = 8), 
+                      plot.title = element_text(hjust = 0.5, size = 9.5), axis.title = element_text(size = 10))
+plot2 = plot1 + geom_segment(aes(x = 1, y = 0, xend=2, yend = 1415), color = "green") + 
+        geom_segment(aes(x = 2, y = 1415, xend=3, yend = 2707), color = "green") + 
+        geom_segment(aes(x = 3, y = 2707, xend=4, yend = 5632), color = "green") + 
+        geom_segment(aes(x = 4, y = 5632, xend=5, yend = 8643), color = "green") + 
+        geom_segment(aes(x = 5, y = 8643, xend=6, yend = 9606), color = "green") + 
+        geom_segment(aes(x = 6, y = 9606, xend=7, yend = 5273), color = "red") + 
+        geom_segment(aes(x = 7, y = 5273, xend=8, yend = 2135), color = "red")  
+plot3 = plot2 + geom_text(size = 3,#fontface = "bold",
+                          aes(x =  xlabel, y = ylabel, label = paste0(round(label,0))))
+plot4 = plot3 + geom_vline(xintercept = 6.5, #where
+                           size=1.5, #thickness
+                           alpha=0.8,#transparency
+                           color = "blue") + 
+        annotate(geom = 'text', 
+                 label = "<- Start of Covid-19 pandemic",
+                 size = 2.9,
+                 y = 9001,
+                 x=7.5,
+                 angle=0)
+plot4
+```
+
+### Chart C
+
+```{r, message=FALSE,echo=FALSE,results='hide',warning=FALSE}
+#Data
+link = "https://github.com/Charting-Chumps/Data/raw/main/Race_Enrollment.csv"
+df = as.data.frame(import(link))
+```
+
+```{r, message=FALSE,echo=FALSE,results='hide',warning=FALSE}
+#Analysis
+df=as.data.frame(df)
+df$Race=as.factor(df$Race)
+df$SchoolYear=as.factor(df$SchoolYear)
+df$Total=as.integer(df$Total)
+df$YearTotal = c(1091355, 1091355, 1091355, 1091355, 1091355, 1091355, 1091355, 1088758, 1088758, 1088758, 1088758, 1088758, 1088758, 1088758, 1140997, 1140997, 1140997, 1140997, 1140997, 1140997, 1140997, 1133507, 1133507, 1133507, 1133507, 1133507, 1133507, 1133507, 1126191, 1126191, 1126191, 1126191, 1126191, 1126191, 1126191, 1113069, 1113069, 1113069, 1113069, 1113069, 1113069, 1113069, 1096921, 1096921, 1096921, 1096921, 1096921, 1096921, 1096921, 1082279, 1082279, 1082279, 1082279, 1082279, 1082279, 1082279)
+df$PctTotalYear = df$Total / df$YearTotal
+```
+
+
+
+```{r, message=FALSE,results='hide',warning=FALSE}
+base=ggplot(data=df,
+            aes(x = SchoolYear,
+                y = PctTotalYear,
+                fill=reorder(Race,PctTotalYear)))
+plot1=base + geom_bar(stat = 'identity',
+                      position = 'stack') + 
+        labs(title="Washington public schools are increasingly home to students of color",
+                     x ="School Year", 
+                     y = "Students",
+                     caption = "Source: Washington State Department of Education") + 
+      theme(plot.caption = element_text(hjust = 0.5, size = 9.5), 
+                      plot.title = element_text(hjust = 0.5, size = 10), axis.title = element_text(size = 10)) + 
+      scale_y_continuous(labels = percent) + 
+      guides(fill=guide_legend(title="Race/Ethnicity"))
+plot2 = plot1 + geom_hline(yintercept = 0.5,
+                           linewidth=0.5,
+                           alpha=0.7,
+                           color = "black", 
+                           linetype = "dashed") + 
+                theme(axis.text.x = element_text(angle = -30, hjust = 0.5))
+plot2
+```
+
